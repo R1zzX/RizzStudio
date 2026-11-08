@@ -48,13 +48,14 @@ export const CONTROLS = {
 
   Label: d('Label', [60, 18], 'Label1', [
     { name: 'Text', type: 'string', cat: 'Appearance', def: 'Label1' },
-    { name: 'AutoSize', type: 'bool', cat: 'Layout', def: true },
+    { name: 'AutoSize', type: 'bool', cat: 'Layout', def: true, emitAlways: true },
     { name: 'TextAlign', type: 'enum', cat: 'Appearance', def: 'TopLeft', options: ['TopLeft', 'TopCenter', 'TopRight', 'MiddleLeft', 'MiddleCenter', 'MiddleRight', 'BottomLeft', 'BottomCenter', 'BottomRight'], ns: 'System.Drawing.ContentAlignment' },
     { name: 'BorderStyle', type: 'enum', cat: 'Appearance', def: 'None', options: ['None', 'FixedSingle', 'Fixed3D'] },
   ], E(), { backColor: 'Transparent', desc: 'Displays text that cannot be edited by the user.' }),
 
   LinkLabel: d('LinkLabel', [92, 18], 'LinkLabel1', [
     { name: 'Text', type: 'string', cat: 'Appearance', def: 'LinkLabel1' },
+    { name: 'AutoSize', type: 'bool', cat: 'Layout', def: true, emitAlways: true },
     { name: 'LinkColor', type: 'color', cat: 'Appearance', def: '#0066CC' },
     { name: 'VisitedLinkColor', type: 'color', cat: 'Appearance', def: '#800080' },
     { name: 'LinkBehavior', type: 'enum', cat: 'Behavior', def: 'SystemDefault', options: ['SystemDefault', 'AlwaysUnderline', 'HoverUnderline', 'NeverUnderline'] },
@@ -91,7 +92,7 @@ export const CONTROLS = {
     { name: 'Checked', type: 'bool', cat: 'Appearance', def: false },
     { name: 'CheckState', type: 'enum', cat: 'Appearance', def: 'Unchecked', options: ['Unchecked', 'Checked', 'Indeterminate'] },
     { name: 'ThreeState', type: 'bool', cat: 'Behavior', def: false },
-    { name: 'AutoSize', type: 'bool', cat: 'Layout', def: true },
+    { name: 'AutoSize', type: 'bool', cat: 'Layout', def: true, emitAlways: true },
     { name: 'TextAlign', type: 'enum', cat: 'Appearance', def: 'MiddleLeft', options: ['TopLeft', 'TopCenter', 'TopRight', 'MiddleLeft', 'MiddleCenter', 'MiddleRight', 'BottomLeft', 'BottomCenter', 'BottomRight'], ns: 'System.Drawing.ContentAlignment' },
     { name: 'Appearance', type: 'enum', cat: 'Appearance', def: 'Normal', options: ['Normal', 'Button'] },
   ], E(['CheckedChanged', 'CheckStateChanged']), { backColor: 'Transparent', desc: 'A check box the user can select or clear.' }),
@@ -99,7 +100,7 @@ export const CONTROLS = {
   RadioButton: d('RadioButton', [104, 24], 'RadioButton1', [
     { name: 'Text', type: 'string', cat: 'Appearance', def: 'RadioButton1' },
     { name: 'Checked', type: 'bool', cat: 'Appearance', def: false },
-    { name: 'AutoSize', type: 'bool', cat: 'Layout', def: true },
+    { name: 'AutoSize', type: 'bool', cat: 'Layout', def: true, emitAlways: true },
     { name: 'TextAlign', type: 'enum', cat: 'Appearance', def: 'MiddleLeft', options: ['TopLeft', 'TopCenter', 'TopRight', 'MiddleLeft', 'MiddleCenter', 'MiddleRight', 'BottomLeft', 'BottomCenter', 'BottomRight'], ns: 'System.Drawing.ContentAlignment' },
   ], E(['CheckedChanged']), { backColor: 'Transparent', desc: 'A radio button; only one in a container can be selected.' }),
 
@@ -151,14 +152,14 @@ export const CONTROLS = {
   ProgressBar: d('ProgressBar', [150, 23], '', [
     { name: 'Minimum', type: 'int', cat: 'Data', def: 0 },
     { name: 'Maximum', type: 'int', cat: 'Data', def: 100 },
-    { name: 'Value', type: 'int', cat: 'Data', def: 40 },
+    { name: 'Value', type: 'int', cat: 'Data', def: 0 },
     { name: 'Style', type: 'enum', cat: 'Appearance', def: 'Continuous', options: ['Blocks', 'Continuous', 'Marquee'] },
   ], E(), { backColor: '#E6E6E6', desc: 'Shows the progress of an operation.' }),
 
   TrackBar: d('TrackBar', [150, 45], '', [
     { name: 'Minimum', type: 'int', cat: 'Data', def: 0 },
     { name: 'Maximum', type: 'int', cat: 'Data', def: 10 },
-    { name: 'Value', type: 'int', cat: 'Data', def: 3 },
+    { name: 'Value', type: 'int', cat: 'Data', def: 0 },
     { name: 'TickStyle', type: 'enum', cat: 'Appearance', def: 'BottomRight', options: ['None', 'TopLeft', 'BottomRight', 'Both'] },
     { name: 'TickFrequency', type: 'int', cat: 'Appearance', def: 1 },
   ], E(['ValueChanged', 'Scroll']), { backColor: 'Transparent', desc: 'Selects a value by moving a thumb along a track.' }),
@@ -253,7 +254,7 @@ export const FORM_PROPS = [
   { name: 'BackColor', type: 'color', cat: 'Appearance', def: '#F0F0F0' },
   { name: 'ForeColor', type: 'color', cat: 'Appearance', def: '#000000' },
   { name: 'Font', type: 'font', cat: 'Appearance', def: { family: 'Segoe UI', size: 9, style: 0 } },
-  { name: 'StartPosition', type: 'enum', cat: 'Layout', def: 'CenterScreen', options: ['Manual', 'CenterScreen', 'WindowsDefaultLocation', 'WindowsDefaultBounds', 'CenterParent'], ns: 'System.Windows.Forms.FormStartPosition' },
+  { name: 'StartPosition', type: 'enum', cat: 'Layout', def: 'WindowsDefaultLocation', options: ['Manual', 'CenterScreen', 'WindowsDefaultLocation', 'WindowsDefaultBounds', 'CenterParent'], ns: 'System.Windows.Forms.FormStartPosition' },
   { name: 'FormBorderStyle', type: 'enum', cat: 'Appearance', def: 'Sizable', options: ['None', 'FixedSingle', 'Fixed3D', 'FixedDialog', 'Sizable', 'FixedToolWindow', 'SizableToolWindow'], ns: 'System.Windows.Forms.FormBorderStyle' },
   { name: 'WindowState', type: 'enum', cat: 'Behavior', def: 'Normal', options: ['Normal', 'Minimized', 'Maximized'], ns: 'System.Windows.Forms.FormWindowState' },
   { name: 'MaximizeBox', type: 'bool', cat: 'Behavior', def: true },

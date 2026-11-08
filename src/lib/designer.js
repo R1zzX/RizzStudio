@@ -2,7 +2,7 @@
 
 import { CONTROLS, propsFor, iconFor, toolboxIconChar } from './catalog.js';
 import {
-  addControl, allControls, controlListFor, findControl, findParent, isContainer,
+  addControl, allControls, controlListFor, controlName, findControl, findParent, isContainer,
   uid, uniqueName, usedNames, walkControls,
 } from './model.js';
 
@@ -38,6 +38,7 @@ export class Designer {
     this.redoStack = [];
     this.pendingTool = null;
     this.drag = null;
+    this.zoom = 1;
     this.settings = { grid: true, snap: true, guides: true, gridSize: SNAP };
     this.$ = {
       frame: document.getElementById('form-frame'),
@@ -56,6 +57,7 @@ export class Designer {
       formSelect: document.getElementById('form-select'),
       gridBtn: document.getElementById('btn-grid'),
       snapBtn: document.getElementById('btn-snap'),
+      zoom: document.getElementById('zoom-select'),
     };
     this.init();
   }
@@ -93,7 +95,38 @@ export class Designer {
 
     this.$.formSelect.addEventListener('change', () => this.app.switchForm(this.$.formSelect.value));
 
+    if (this.$.zoom) {
+      this.$.zoom.addEventListener('change', () => this.setZoom(parseInt(this.$.zoom.value) / 100));
+    }
+    this.$.scroll.addEventListener('wheel', (e) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      this.zoomStep(e.deltaY < 0 ? 1 : -1);
+    }, { passive: false });
+
     window.addEventListener('keydown', (e) => this.onKeyDown(e));
+  }
+
+  setZoom(z) {
+    const steps = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
+    this.zoom = Math.min(2, Math.max(0.25, Math.round(z * 100) / 100));
+    this.$.frame.style.zoom = String(this.zoom);
+    if (this.$.zoom) {
+      const pct = Math.round(this.zoom * 100);
+      const nearest = steps.reduce((a, s) => Math.abs(Math.round(s * 100) - pct) < Math.abs(Math.round(a * 100) - pct) ? s : a, steps[0]);
+      this.$.zoom.value = String(Math.round(nearest * 100));
+    }
+    this.app.setStatus(`Zoom: ${Math.round(this.zoom * 100)}%`);
+  }
+
+  zoomStep(dir) {
+    const steps = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
+    const i = steps.indexOf(this.zoom);
+    if (i >= 0) this.setZoom(steps[Math.min(steps.length - 1, Math.max(0, i + dir))]);
+    else {
+      const next = steps.find(s => dir > 0 ? s > this.zoom : s < this.zoom);
+      if (next) this.setZoom(next);
+    }
   }
 
   /* ---------------- document ---------------- */
@@ -235,6 +268,20 @@ export class Designer {
     this.$.snapBtn.classList.toggle('on', this.settings.snap);
   }
 
+  /* A control inherits the Font of its nearest parent (container or form) until
+     the property is explicitly changed, matching WinForms inheritance rules. */
+  fontFor(c) {
+    const isDefault = (type, f) => {
+      const def = propsFor(type).find(p => p.name === 'Font');
+      return !!def && JSON.stringify(f) === JSON.stringify(def.def);
+    };
+    for (let cur = c; cur; cur = cur._parent) {
+      const f = cur.props?.Font;
+      if (f && !isDefault(cur.type, f)) return f;
+    }
+    return this.form?.props?.Font || { family: 'Segoe UI', size: 9, style: 0 };
+  }
+
   renderControl(c) {
     const r = c._rect || { x: c.x, y: c.y, w: c.w, h: c.h };
     const node = el('div', `ctl ${c.type}`);
@@ -244,8 +291,19 @@ export class Designer {
     node.style.width = r.w + 'px';
     node.style.height = r.h + 'px';
 
+    if (c.unknown) {
+      node.classList.add('ctl-preserved');
+      const t = el('span', 'ctext');
+      t.textContent = `${c.name} (${c.type})`;
+      node.appendChild(t);
+      node.title = `Unsupported control type "${c.type}". It is preserved in Designer.vb but cannot be edited here.`;
+      node.addEventListener('pointerdown', (e) => { e.stopPropagation(); this.select([c.id], e.ctrlKey || e.shiftKey); });
+      node.addEventListener('contextmenu', (e) => this.onContextMenu(e, c));
+      return node;
+    }
+
     const p = c.props || {};
-    const font = p.Font || { family: 'Segoe UI', size: 9, style: 0 };
+    const font = this.fontFor(c);
     node.style.fontFamily = `"${font.family}", "Noto Sans", sans-serif`;
     node.style.fontSize = Math.max(7, Math.round((font.size || 9) * 96 / 72)) + 'px';
     node.style.fontWeight = (font.style & 1) ? '700' : '400';
@@ -461,7 +519,8 @@ export class Designer {
 
   toForm(e) {
     const r = this.$.client.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
+    const z = this.zoom || 1;
+    return { x: (e.clientX - r.left) / z, y: (e.clientY - r.top) / z };
   }
 
   onSurfaceDown(e) {
@@ -611,6 +670,7 @@ export class Designer {
     this.pushUndo();
     const start = this.toForm(e);
     const o = { x: c.x, y: c.y, w: c.w, h: c.h };
+    let autoCleared = false;
     const move = (ev) => {
       const p = this.toForm(ev);
       let dx = Math.round(p.x - start.x);
@@ -619,6 +679,10 @@ export class Designer {
         const g = this.settings.gridSize || SNAP;
         dx = Math.round(dx / g) * g;
         dy = Math.round(dy / g) * g;
+      }
+      if (!autoCleared && (dx || dy) && c.props?.AutoSize === true) {
+        c.props.AutoSize = false;
+        autoCleared = true;
       }
       let { x, y, w, h } = o;
       if (dir.includes('e')) w = Math.max(8, o.w + dx);
@@ -723,6 +787,13 @@ export class Designer {
     const cs = this.selectedControls();
     if (!cs.length) return;
     this.pushUndo();
+    const removed = [];
+    const collect = (c) => {
+      removed.push(c.name);
+      for (const ch of c.children || []) collect(ch);
+      for (const p of c.tabPages || []) { removed.push(p.name); for (const ch of p.children || []) collect(ch); }
+    };
+    for (const c of cs) collect(c);
     for (const c of cs) {
       if (c.component) {
         this.form.components = this.form.components.filter(x => x.id !== c.id);
@@ -737,11 +808,12 @@ export class Designer {
     this.sel.clear();
     this.render();
     this.app.onDesignerChange(true);
+    this.app.cleanupDeletedHandlers(removed);
     this.app.props.showTarget(this.getTarget());
   }
 
   copy() {
-    const cs = this.selectedControls();
+    const cs = this.selectedControls().filter(c => !c.unknown);
     if (!cs.length) return;
     this.clipboard = cs.map(c => cleanForm(c));
     this.app.setStatus(`${cs.length} control(s) copied`);
@@ -756,7 +828,7 @@ export class Designer {
     const pasteOne = (src, parent) => {
       const c = deepClone(src);
       c.id = uid();
-      c.name = uniqueName(c.type, used);
+      c.name = controlName(c.type, used);
       used.add(c.name);
       if (c.type === 'TabControl') {
         for (const p of c.tabPages || []) {
@@ -795,7 +867,7 @@ export class Designer {
   duplicate() { this.copy(); this.paste(); }
 
   selectAll() {
-    this.sel = new Set(allControls(this.form).filter(c => !c.component).map(c => c.id));
+    this.sel = new Set(allControls(this.form).filter(c => !c.component && !c.unknown).map(c => c.id));
     this.selForm = false;
     this.renderSelection();
     this.updateStatus();
@@ -803,7 +875,7 @@ export class Designer {
   }
 
   nudge(dx, dy) {
-    const cs = this.selectedControls().filter(c => !c.props?.Locked && !c.component);
+    const cs = this.selectedControls().filter(c => !c.props?.Locked && !c.component && !c.unknown);
     if (!cs.length) return;
     this.pushUndo();
     for (const c of cs) { c.x = Math.max(0, c.x + dx); c.y = Math.max(0, c.y + dy); }
@@ -812,7 +884,7 @@ export class Designer {
   }
 
   align(kind) {
-    const cs = this.selectedControls().filter(c => !c.component);
+    const cs = this.selectedControls().filter(c => !c.component && !c.unknown);
     if (cs.length < 2) { this.app.toast('Select at least two controls to align', 'warn'); return; }
     this.pushUndo();
     const xs = cs.map(c => c._rect.x);
@@ -833,7 +905,7 @@ export class Designer {
   }
 
   sameSize(kind) {
-    const cs = this.selectedControls().filter(c => !c.component);
+    const cs = this.selectedControls().filter(c => !c.component && !c.unknown);
     if (cs.length < 2) { this.app.toast('Select at least two controls', 'warn'); return; }
     this.pushUndo();
     const first = cs[0];
@@ -847,7 +919,7 @@ export class Designer {
   }
 
   order(kind) {
-    const cs = this.selectedControls();
+    const cs = this.selectedControls().filter(c => !c.unknown);
     if (!cs.length) return;
     this.pushUndo();
     for (const c of cs) {
@@ -877,6 +949,7 @@ export class Designer {
 
   onKeyDown(e) {
     if (!this.app.isDesignerActive()) return;
+    if (this.app.activeModal || this.app.menuName) return;
     const tag = document.activeElement?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable) return;
     const mod = e.ctrlKey || e.metaKey;

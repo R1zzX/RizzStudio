@@ -7,7 +7,7 @@
     "start": "electron .",
     "dev": "electron . --dev"
   },
-  "author": "BikinStudio",
+  "author": "Rizz Studio",
   "license": "MIT",
   "devDependencies": {
     "electron": "^33.4.11",

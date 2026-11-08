@@ -74,7 +74,7 @@ function defineCompletions() {
         { label: 'Try', kind: K.Snippet, insertText: 'Try\n\t$1\nCatch ex As Exception\n\tMessageBox.Show(ex.Message)\nEnd Try', insertTextRules: S },
         { label: 'Select', kind: K.Snippet, insertText: 'Select Case ${1:value}\n\tCase ${2:1}\n\t\t$0\n\tCase Else\nEnd Select', insertTextRules: S },
         { label: 'Class', kind: K.Snippet, insertText: 'Public Class ${1:Name}\n\t$0\nEnd Class', insertTextRules: S },
-        { label: 'MsgBox', kind: K.Snippet, insertText: 'MsgBox(${1:"Hello"}, MsgBoxStyle.Information, ${2:"BikinStudio"})', insertTextRules: S },
+        { label: 'MsgBox', kind: K.Snippet, insertText: 'MsgBox(${1:"Hello"}, MsgBoxStyle.Information, ${2:"Rizz Studio"})', insertTextRules: S },
         { label: 'MessageBox.Show', kind: K.Snippet, insertText: 'MessageBox.Show(${1:"Hello"}, ${2:"Title"}, MessageBoxButtons.OK, MessageBoxIcon.Information)', insertTextRules: S },
         { label: 'Handles', kind: K.Snippet, insertText: 'Handles ${1:Control}.${2:Click}', insertTextRules: S },
         { label: 'Dim', kind: K.Snippet, insertText: 'Dim ${1:name} As ${2:String} = ${3:""}', insertTextRules: S },
@@ -201,6 +201,15 @@ export class CodeEditor {
     this.suppress = true;
     m.setValue(value);
     this.suppress = false;
+  }
+
+  /* Drop every cached Monaco model. Called when switching projects so a new
+     project never reads stale buffer contents from the previous one. */
+  clearModels() {
+    for (const m of this.models.values()) m.dispose();
+    this.models.clear();
+    this.path = null;
+    if (this.editor) this.editor.setModel(null);
   }
 
   setFontSize(n) {

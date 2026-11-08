@@ -1,17 +1,18 @@
-# BikinStudio
+# Rizz Studio
 
 A Visual Studio–style desktop IDE for Linux that builds and runs **VB.NET Windows Forms** applications. It ships a drag-and-drop form designer, a properties/events grid, a Monaco-based VB.NET code editor, and a build/run pipeline that produces real `net472` WinForms executables and runs them with a bundled Mono runtime.
 
 No Windows required. No `sudo` required.
 
-![BikinStudio](assets/icon.png)
+![Rizz Studio](assets/icon.png)
 
 ## What it can do
 
 - Create, open, and save VB.NET WinForms projects (`.sln` + `.vbproj`).
 - Design forms visually: drop controls from the toolbox, move, resize, align, snap, copy/paste, undo/redo.
 - Edit properties in a grouped property grid, including colors, fonts, enums, anchors, padding, and collections.
-- Bind and unbind events; BikinStudio writes the `Handles` clause and a handler stub into the code-behind.
+- Bind and unbind events; Rizz Studio writes the `Handles` clause and a handler stub into the code-behind. The Events grid stays in sync while you edit the handler code.
+- Rename or delete forms from the Solution Explorer context menu; rename updates the class, both files, handler names, and `Program.vb`.
 - Edit the generated `Form1.Designer.vb` and `Form1.vb` directly in a VB.NET editor.
 - Build with the .NET SDK and run the resulting `.exe` with Mono WinForms.
 - Preview the form layout in-app without launching Mono.
@@ -57,7 +58,7 @@ The script is idempotent — running it again skips components that are already 
 4. **Write code** — `F7` opens the handler for the selected control. The code editor has VB.NET syntax highlighting and completion.
 5. **Save** — `Ctrl+S` saves the active form/code file, `Ctrl+Shift+S` saves everything.
 6. **Build** — `Ctrl+Shift+B`.
-7. **Run** — `F5`. BikinStudio builds, then starts the app with Mono.
+7. **Run** — `F5`. Rizz Studio builds, then starts the app with Mono.
 
 The **Preview** button (designer toolbar) renders a simulated, non-interactive view of the form inside the IDE. Use `F5` for the real application.
 
@@ -98,7 +99,7 @@ MyApp/
   bin/Debug/net472/MyApp.exe
 ```
 
-- `Form1.Designer.vb` is the source of truth for the designer model. BikinStudio serializes the form to real VB.NET designer code and parses it back on load.
+- `Form1.Designer.vb` is the source of truth for the designer model. Rizz Studio serializes the form to real VB.NET designer code and parses it back on load.
 - `Form1.vb` is the code-behind. Handlers created through the Events grid are inserted here.
 - `Program.vb` calls `Application.Run(New Form1())`.
 - The project targets `net472` and references `Microsoft.NETFramework.ReferenceAssemblies` so it can be compiled on Linux.
@@ -114,13 +115,15 @@ MyApp/
 | Runtime | Mono 6.12 WinForms (portable extraction) |
 | Graphics | libgdiplus 6.1 + libcairo |
 
-BikinStudio deliberately uses the real `.Designer.vb` file format rather than a proprietary JSON model. That means projects remain readable and editable outside the IDE.
+Rizz Studio deliberately uses the real `.Designer.vb` file format rather than a proprietary JSON model. That means projects remain readable and editable outside the IDE.
 
 ## Limitations
 
 - **Mono, not .NET Framework.** Most WinForms controls work, but Windows-only APIs (registry, WMI, some P/Invoke, native COM controls) will not.
 - **No debugger.** `F5` builds and launches the app; it does not attach a step debugger.
 - **Preview is a simulation.** It clones the designer surface for layout checking only.
+- **Undo after deleting a control** restores the control but not the `Handles` clause that was removed from the code-behind; the handler body itself is never deleted.
+- **Resource-backed designer values** (properties serialized with `resources.GetObject`, `CType`, or `DirectCast`, such as images) are not re-emitted by the designer. Edit those in code.
 - **No NuGet UI.** You can add `PackageReference` entries to the `.vbproj` manually.
 - **Visual styles are approximate.** Mono renders WinForms with its own theme; it will not look identical to Windows 10/11.
 - **`Gtk not found ... using built-in colorscheme`** on startup is a harmless Mono warning.
@@ -138,7 +141,7 @@ Run `bash scripts/install-toolchain.sh` again, or check that `~/.dotnet/dotnet -
 - Open the **Output** panel for Mono's stdout/stderr.
 
 **Designer shows a warning about an unsupported control**
-The control exists in the `.Designer.vb` but is not in BikinStudio's catalog. It is preserved in code but not rendered in the designer.
+The control exists in the `.Designer.vb` but is not in Rizz Studio's catalog. Rizz Studio keeps its declaration, constructor, and property lines verbatim and shows a dashed placeholder on the design surface. You can build and run it normally; edit its properties in code. Saving the form never deletes it.
 
 **Reset window layout**
 Use **View → Reset Layout**.

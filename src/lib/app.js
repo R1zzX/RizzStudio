@@ -1,4 +1,4 @@
-/* BikinStudio — main application orchestrator. */
+/* Rizz Studio — main application orchestrator. */
 
 import {
   CATEGORIES, CONTROLS, FORM_PROPS, iconFor, toolboxIconChar,
@@ -7,7 +7,7 @@ import {
 import {
   createFormModel, createControl, addControl, allControls, findControl, findParent,
   usedNames, uniqueName, walkControls, serializeDesigner, parseDesigner, parseHandlers,
-  defaultCodeBehind, handlerName, makeTabPage,
+  defaultCodeBehind, handlerName, makeTabPage, stripHandlesFor,
   vbprojFile, slnFile, programFile, uid, COMPONENT_TYPES,
 } from './model.js';
 import { Designer } from './designer.js';
@@ -165,7 +165,7 @@ class App {
 
   requestClose() {
     if (this.dirty.size) {
-      this.confirm('Close BikinStudio', 'There are unsaved changes. Save before closing?', [
+      this.confirm('Close Rizz Studio', 'There are unsaved changes. Save before closing?', [
         { label: 'Cancel', value: 'cancel' },
         { label: 'Discard', value: 'discard' },
         { label: 'Save All', value: 'save', primary: true },
@@ -196,9 +196,9 @@ class App {
 
   updateTitle() {
     const dirty = this.dirty.size > 0;
-    const name = this.project ? this.project.name : 'BikinStudio';
-    $('tb-title').textContent = `${name}${dirty ? ' •' : ''} — BikinStudio Community`;
-    document.title = `${name}${dirty ? ' •' : ''} — BikinStudio`;
+    const name = this.project ? this.project.name : 'Rizz Studio';
+    $('tb-title').textContent = `${name}${dirty ? ' •' : ''} — Rizz Studio`;
+    document.title = `${name}${dirty ? ' •' : ''} — Rizz Studio`;
     $('sb-project').textContent = this.project ? this.project.name : 'No project';
   }
 
@@ -250,6 +250,7 @@ class App {
         api.closed = true;
         layer.classList.add('hidden');
         layer.innerHTML = '';
+        layer.onkeydown = null;
         if (this.activeModal === api) this.activeModal = null;
         if (onClose) onClose(value);
       },
@@ -258,8 +259,10 @@ class App {
     x.addEventListener('click', () => api.close(null));
     layer.onclick = (e) => { if (e.target === layer && closable) api.close(null); };
 
+    let primaryBtn = null;
     for (const b of buttons) {
       const btn = el('button', 'btn ' + (b.primary ? 'primary' : '') + (b.small ? ' sm' : ''), esc(b.label));
+      if (b.primary) primaryBtn = btn;
       btn.addEventListener('click', async () => {
         if (btn.disabled) return;
         if (b.onClick) {
@@ -273,6 +276,25 @@ class App {
       if (b.left) btn.style.marginRight = 'auto';
       foot.appendChild(btn);
     }
+
+    layer.onkeydown = (e) => {
+      if (e.key === 'Escape') {
+        if (!closable) return;
+        e.preventDefault();
+        api.close(null);
+        return;
+      }
+      if (e.key !== 'Enter' || !primaryBtn) return;
+      const tag = (e.target && e.target.tagName ? e.target.tagName : '').toLowerCase();
+      if (tag === 'textarea' || tag === 'button') return;
+      e.preventDefault();
+      primaryBtn.click();
+    };
+    const focusables = bodyEl.querySelectorAll('input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled])');
+    if (focusables.length) {
+      const first = focusables[0];
+      setTimeout(() => { try { first.focus(); if (first.select) first.select(); } catch {} }, 0);
+    }
     return api;
   }
 
@@ -285,7 +307,7 @@ class App {
         body: `<p style="margin:0;line-height:1.6;color:var(--text-dim)">${esc(message)}</p>`,
         buttons: (buttons || [{ label: 'Cancel', value: 'cancel' }, { label: 'OK', value: 'ok', primary: true }]).map(b => ({
           ...b,
-          onClick: () => { api.close(); done(b.value); },
+          onClick: () => { done(b.value); api.close(b.value); },
         })),
         onClose: (v) => done(v == null ? 'cancel' : v),
       });
@@ -353,7 +375,7 @@ class App {
         { label: 'Select All', key: 'Ctrl+A', action: () => this.isDesignerActive() ? this.designer.selectAll() : this.monacoCommand('editor.action.selectAll') },
         { sep: true },
         { label: 'Find…', key: 'Ctrl+F', action: () => this.monacoCommand('actions.find') },
-        { label: 'Search BikinStudio…', key: 'Ctrl+Q', action: () => this.openSearch() },
+        { label: 'Search Rizz Studio…', key: 'Ctrl+Q', action: () => this.openSearch() },
       ],
       view: [
         { label: 'Toolbox', action: () => this.showLeftPanel('toolbox') },
@@ -426,7 +448,7 @@ class App {
         { label: 'Reset Layout', action: () => this.resetLayout() },
       ],
       help: [
-        { label: 'About BikinStudio', action: () => this.showAbout() },
+        { label: 'About Rizz Studio', action: () => this.showAbout() },
         { label: 'Open Toolchain Folder', action: () => {
             const dir = this.toolchain && this.toolchain.toolchainDir;
             if (dir) bik.invoke('shell:openPath', dir);
@@ -798,10 +820,7 @@ class App {
 
   bindGlobalKeys() {
     window.addEventListener('keydown', (e) => {
-      if (this.activeModal) {
-        if (e.key === 'Escape') { e.preventDefault(); this.activeModal.close(null); }
-        return;
-      }
+      if (this.activeModal) return;
       if (e.key === 'Escape' && this.menuName) { this.closeMenu(); return; }
       const mod = e.ctrlKey || e.metaKey;
       const key = e.key.toLowerCase();
@@ -835,9 +854,12 @@ class App {
       if (this.bottomTab === 'output' && this.outputSource === 'Application') this.renderOutput();
     });
     bik.on('app:exited', (r) => {
-      this.toast(`Application exited (code ${r.code})`, r.code === 0 ? 'ok' : 'warn');
-      this.appOutput += `\n[application exited with code ${r.code}]\n`;
+      const code = r.code;
+      const clean = code === 0 || code === null || code === undefined;
+      this.toast(clean ? 'Application stopped' : `Application exited (code ${code})`, clean ? 'ok' : 'warn');
+      this.appOutput += clean ? '\n[application stopped]\n' : `\n[application exited with code ${code}]\n`;
       if (this.bottomTab === 'output' && this.outputSource === 'Application') this.renderOutput();
+      if (!this.buildState || !this.buildState.running) this.setStatus('Ready');
     });
     bik.on('toolchain:output', (d) => {
       this.toolchainLog += d;
@@ -1079,7 +1101,10 @@ class App {
   async saveAll(quiet = false) {
     if (!this.project) { if (!quiet) this.toast('No project to save', 'warn'); return; }
     try {
-      for (const entry of this.forms.values()) await this.saveForm(entry);
+      for (const entry of this.forms.values()) {
+        if (!this.dirty.has('designer:' + entry.name)) continue;
+        await this.saveForm(entry);
+      }
       for (const doc of this.docs) {
         if (doc.kind !== 'code' || !doc.path || doc.readOnly) continue;
         if (!this.dirty.has(doc.id)) continue;
@@ -1108,6 +1133,7 @@ class App {
     walkControls(entry.form.controls || [], (c) => {
       for (const k of Object.keys(c.events || {})) delete c.events[k];
     });
+    for (const c of entry.form.components || []) c.events = {};
     entry.form.events = {};
     for (const [key, handler] of Object.entries(map)) {
       if (key.startsWith('form:')) {
@@ -1123,13 +1149,37 @@ class App {
   findControlByName(form, name) {
     let found = null;
     walkControls(form.controls || [], (c) => { if (c.name === name) found = c; });
+    if (!found) found = (form.components || []).find(c => c.name === name) || null;
     return found;
+  }
+
+  async cleanupDeletedHandlers(names) {
+    const list = (names || []).filter(Boolean);
+    if (!list.length) return;
+    const entry = this.activeFormEntry();
+    if (!entry) return;
+    const codePath = entry.codePath;
+    let code = this.contentFor(codePath) || await this.readFile(codePath);
+    if (!code) return;
+    const next = stripHandlesFor(code, list);
+    if (next === code) return;
+    await this.writeFile(codePath, next);
+    if (this.editor && this.editor.models.has(codePath)) this.editor.setValue(codePath, next);
+    this.applyHandlers(entry, next);
   }
 
   onEditorChange(path, value) {
     this.fileCache.set(path, value);
     const doc = this.docs.find(d => d.id === path);
     if (doc) { this.markDirty(doc.id); }
+    // Keep the Events grid in sync while the user edits a form's code, like VS.
+    const entry = [...this.forms.values()].find(f => f.codePath === path);
+    if (!entry) return;
+    clearTimeout(this._handlerTimer);
+    this._handlerTimer = setTimeout(() => {
+      this.applyHandlers(entry, this.contentFor(path));
+      if (this.activeFormName === entry.name) this.props.render();
+    }, 250);
   }
 
   updateCursor(line, col) {
@@ -1256,7 +1306,7 @@ class App {
   }
 
   async openSample() {
-    const base = (this.toolchain && this.toolchain.home ? this.toolchain.home : '/tmp') + '/BikinStudio Samples';
+    const base = (this.toolchain && this.toolchain.home ? this.toolchain.home : '/tmp') + '/Rizz Studio Samples';
     const dir = joinPath(base, 'Calculator');
     const exists = await bik.invoke('fs:exists', joinPath(dir, 'Calculator.vbproj'));
     if (!exists) {
@@ -1309,16 +1359,22 @@ class App {
       this.forms.clear();
       this.fileCache.clear();
       this.dirty.clear();
+      clearTimeout(this._handlerTimer);
+      if (this.editor && this.editor.clearModels) this.editor.clearModels();
       this.docs = [{ id: 'start', kind: 'start', label: 'Start Page' }];
       this.activeDocId = 'start';
 
       const files = await bik.invoke('fs:readdir', projectDir);
       const designerFiles = files.filter(i => !i.dir && /\.Designer\.vb$/i.test(i.name));
+      const designWarnings = [];
       for (const f of designerFiles) {
         const base = f.name.replace(/\.Designer\.vb$/i, '');
         const codePath = joinPath(projectDir, base + '.vb');
         const content = await this.readFile(f.path, true);
         const parsed = parseDesigner(content, base);
+        for (const w of parsed.warnings || []) {
+          designWarnings.push({ severity: 'warning', code: 'DESIGNER', message: w, file: f.path, line: 1 });
+        }
         const form = parsed.form;
         form.name = base;
         form.path = f.path;
@@ -1346,6 +1402,10 @@ class App {
       this.showLeftPanel('explorer');
       await this.openDesigner(first);
       this.pushRecent(this.project.name, projectDir);
+      if (designWarnings.length) {
+        this.showErrors(designWarnings);
+        this.toast(`${designWarnings.length} designer warning(s) — see Error List`, 'warn');
+      }
       this.setStatus(`Opened ${this.project.name}`);
       if (!opts.fresh) this.toast(`Loaded ${this.project.name}`, 'ok');
     } catch (err) {
@@ -1363,7 +1423,11 @@ class App {
   async addForm() {
     if (!this.project) { this.toast('Create or open a project first', 'warn'); return; }
     const body = el('div');
-    const suggested = 'Form' + (this.forms.size + 1);
+    const suggested = (() => {
+      let i = this.forms.size + 1;
+      while (this.forms.has('Form' + i)) i++;
+      return 'Form' + i;
+    })();
     body.innerHTML = `<div class="form-field"><label>Form name</label><input type="text" id="nf-name" value="${suggested}" spellcheck="false" /></div>
       <div class="hint">A new form is added with its designer and code-behind. The startup form can be changed in Project &gt; Set Startup Form.</div>`;
     const api = this.openModal({
@@ -1626,9 +1690,9 @@ class App {
         body,
         width: 520,
         buttons: [
-          { label: 'Transparent', onClick: () => { api.close(); done('Transparent'); } },
-          { label: 'Cancel', onClick: () => { api.close(); done(null); } },
-          { label: 'OK', primary: true, onClick: () => { api.close(); done(chosen); } },
+          { label: 'Transparent', onClick: () => { done('Transparent'); api.close(); } },
+          { label: 'Cancel', onClick: () => { done(null); api.close(); } },
+          { label: 'OK', primary: true, onClick: () => { done(chosen); api.close(); } },
         ],
         onClose: () => done(null),
       });
@@ -1675,7 +1739,7 @@ class App {
         body,
         width: 560,
         buttons: [
-          { label: 'Cancel', onClick: () => { api.close(); done(null); } },
+          { label: 'Cancel', onClick: () => { done(null); api.close(); } },
           {
             label: 'OK', primary: true,
             onClick: () => {
@@ -1688,8 +1752,8 @@ class App {
                 size: parseFloat(body.querySelector('#pf-size').value) || 9,
                 style,
               };
-              api.close();
               done(out);
+              api.close();
             },
           },
         ],
@@ -1854,10 +1918,12 @@ class App {
           label: 'OK', primary: true,
           onClick: () => {
             this.designer.pushUndo();
+            const removed = (ctrl.tabPages || []).filter(p => !working.some(w => w.name === p.name)).map(p => p.name);
             ctrl.tabPages = working;
             ctrl.activePage = Math.min(ctrl.activePage || 0, working.length - 1);
             this.designer.render();
             this.onDesignerChange();
+            this.cleanupDeletedHandlers(removed);
             this.props.render();
             api.close();
           },
@@ -2004,9 +2070,14 @@ class App {
           label: 'OK', primary: true,
           onClick: () => {
             this.designer.pushUndo();
+            const flat = (items) => (items || []).flatMap(it => [it.name, ...flat(it.items || [])]);
+            const oldNames = new Set(flat(ctrl.items));
+            const newNames = new Set(flat(working));
+            const removed = [...oldNames].filter(n => !newNames.has(n));
             ctrl.items = working;
             this.designer.render();
             this.onDesignerChange();
+            this.cleanupDeletedHandlers(removed);
             this.props.render();
             api.close();
           },
@@ -2242,8 +2313,142 @@ class App {
       { label: 'View Code', action: () => this.openCode(entry.codePath) },
       { sep: true },
       { label: 'Set as Startup Form', action: () => this.setStartupFormDirect(entry.name) },
+      { label: 'Rename…', action: () => this.renameFormDialog(entry) },
+      { label: 'Delete', action: () => this.deleteForm(entry) },
+      { sep: true },
       { label: 'Open Containing Folder', action: () => bik.invoke('shell:showItem', entry.designerPath) },
     ], e.clientX, e.clientY);
+  }
+
+  async renameFormDialog(entry) {
+    const body = el('div');
+    body.innerHTML = `<div class="form-field"><label>New form name</label><input type="text" id="rf-name" value="${esc(entry.name)}" spellcheck="false" /></div>
+      <div class="hint">Renames the class and both files (<code>${esc(entry.name)}.vb</code>, <code>${esc(entry.name)}.Designer.vb</code>), and updates <code>Program.vb</code>.</div>`;
+    const api = this.openModal({
+      title: 'Rename Form', body, width: 460,
+      buttons: [
+        { label: 'Cancel', value: 'cancel' },
+        {
+          label: 'Rename', primary: true,
+          onClick: async () => {
+            const name = body.querySelector('#rf-name').value.trim();
+            if (name === entry.name) { api.close(); return; }
+            if (!isIdent(name)) { this.toast('Form name must be a valid identifier', 'err'); return; }
+            if (this.forms.has(name)) { this.toast('A form with that name already exists', 'err'); return; }
+            await this.renameForm(entry, name);
+            api.close();
+          },
+        },
+      ],
+    });
+  }
+
+  async renameForm(entry, newName) {
+    if (!this.project) return;
+    const oldName = entry.name;
+    const oldDesignerPath = entry.designerPath;
+    const oldCodePath = entry.codePath;
+    const code = this.contentFor(oldCodePath) || await this.readFile(oldCodePath) || defaultCodeBehind(entry.form);
+    const newDesignerPath = joinPath(this.project.dir, newName + '.Designer.vb');
+    const newCodePath = joinPath(this.project.dir, newName + '.vb');
+
+    entry.form.name = newName;
+    const designer = serializeDesigner(entry.form);
+    let nextCode = code.replace(
+      new RegExp(`(\\b(?:Public|Friend|Partial)\\s+Class\\s+)${escapeRe(oldName)}\\b`, 'g'),
+      `$1${newName}`,
+    );
+    // VS-style: event handlers named <Form>_<Event> follow the form name.
+    nextCode = nextCode.replace(
+      new RegExp(`(\\bSub\\s+)${escapeRe(oldName)}_`, 'g'),
+      `$1${newName}_`,
+    );
+
+    // Keep the startup form pointing at the renamed class.
+    const programPath = joinPath(this.project.dir, 'Program.vb');
+    if (await bik.invoke('fs:exists', programPath)) {
+      const prog = await this.readFile(programPath, true);
+      const next = prog.replace(new RegExp(`New\\s+${escapeRe(oldName)}\\s*\\(`, 'g'), `New ${newName}(`);
+      if (next !== prog) {
+        await this.writeFile(programPath, next);
+        if (this.editor && this.editor.models.has(programPath)) this.editor.setValue(programPath, next);
+      }
+    }
+
+    await this.writeFile(newDesignerPath, designer);
+    await this.writeFile(newCodePath, nextCode);
+    await bik.invoke('fs:rm', oldDesignerPath);
+    await bik.invoke('fs:rm', oldCodePath);
+
+    this.fileCache.delete(oldDesignerPath);
+    this.fileCache.delete(oldCodePath);
+    this.dirty.delete('designer:' + oldName);
+    this.dirty.delete(oldCodePath);
+
+    // Close stale tabs and drop Monaco models tied to the old paths.
+    this.docs = this.docs.filter(d => d.id !== 'designer:' + oldName && d.id !== oldCodePath);
+    for (const p of [oldCodePath, oldDesignerPath]) {
+      const m = this.editor && this.editor.models.get(p);
+      if (m) { this.editor.models.delete(p); m.dispose(); }
+    }
+    if (this.editor && this.editor.path === oldCodePath) this.editor.path = null;
+
+    this.forms.delete(oldName);
+    entry.name = newName;
+    entry.designerPath = newDesignerPath;
+    entry.codePath = newCodePath;
+    this.forms.set(newName, entry);
+    if (this.activeFormName === oldName) this.activeFormName = newName;
+    if (this.designer.doc === entry) this.designer.doc = entry;
+
+    this.renderSolutionTree();
+    await this.openDesigner(newName);
+    this.toast(`Renamed ${oldName} to ${newName}`, 'ok');
+  }
+
+  async deleteForm(entry) {
+    if (!this.project) return;
+    if (this.forms.size <= 1) {
+      this.toast('A project needs at least one form', 'warn');
+      return;
+    }
+    const r = await this.confirm(
+      'Delete ' + entry.name,
+      `Delete ${entry.name}.vb and ${entry.name}.Designer.vb? This cannot be undone.`,
+      [
+        { label: 'Cancel', value: 'cancel' },
+        { label: 'Delete', value: 'delete', primary: true },
+      ],
+    );
+    if (r !== 'delete') return;
+
+    const name = entry.name;
+    const programPath = joinPath(this.project.dir, 'Program.vb');
+    const wasStartup = (await this.readFile(programPath, true)).includes(`New ${name}(`);
+
+    await bik.invoke('fs:rm', entry.designerPath);
+    await bik.invoke('fs:rm', entry.codePath);
+    this.fileCache.delete(entry.designerPath);
+    this.fileCache.delete(entry.codePath);
+    this.dirty.delete('designer:' + name);
+    this.dirty.delete(entry.codePath);
+    this.docs = this.docs.filter(d => d.id !== 'designer:' + name && d.id !== entry.codePath);
+    for (const p of [entry.codePath, entry.designerPath]) {
+      const m = this.editor && this.editor.models.get(p);
+      if (m) { this.editor.models.delete(p); m.dispose(); }
+    }
+    if (this.editor && this.editor.path === entry.codePath) this.editor.path = null;
+
+    this.forms.delete(name);
+    if (this.designer.doc === entry) { this.designer.doc = null; this.designer.form = null; }
+
+    const next = [...this.forms.keys()][0];
+    if (wasStartup && next) await this.setStartupFormDirect(next);
+    this.activeFormName = next;
+    this.renderSolutionTree();
+    await this.openDesigner(next);
+    this.updateTitle();
+    this.toast(`${name} deleted`, 'ok');
   }
 
   async setStartupFormDirect(name) {
@@ -2294,7 +2499,7 @@ class App {
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && filtered[0]) { e.preventDefault(); api.close(); filtered[0].action && filtered[0].action(); }
     });
-    const api = this.openModal({ title: 'Search BikinStudio', body, width: 640, buttons: [] });
+    const api = this.openModal({ title: 'Search Rizz Studio', body, width: 640, buttons: [] });
     draw();
     setTimeout(() => { input.focus(); input.select(); }, 30);
   }
@@ -2307,7 +2512,7 @@ class App {
         <div class="start-logo" style="width:56px;height:56px">
           <svg viewBox="0 0 32 32" width="34" height="34"><path d="M4 8.5 16 2l12 6.5v15L16 30 4 23.5z" fill="#8b5cf6"/><path d="M4 8.5 16 15l12-6.5M16 15v15" fill="none" stroke="#2a1140" stroke-width="2.2" stroke-linejoin="round"/></svg>
         </div>
-        <div><h2 style="margin:0;font-size:18px">BikinStudio Community</h2><div class="hint">A Visual Studio-inspired IDE for VB.NET Windows Forms on Linux.</div></div>
+        <div><h2 style="margin:0;font-size:18px">Rizz Studio</h2><div class="hint">A Visual Studio-inspired IDE for VB.NET Windows Forms on Linux.</div></div>
       </div>
       <div class="kv"><span>Version</span><span>1.0.0</span></div>
       <div class="kv"><span>Editor</span><span>Monaco</span></div>
@@ -2316,7 +2521,7 @@ class App {
       <div class="kv"><span>Mono runtime</span><span>${esc(tc.mono?.installed ? (tc.mono.version || 'ready') : 'not installed')}</span></div>
       <div class="kv"><span>Toolchain directory</span><span>${esc(tc.toolchainDir || '')}</span></div>
       <div class="notice info" style="margin-top:16px">This is an independent project. It is not affiliated with or endorsed by Microsoft. Visual Studio is a trademark of Microsoft Corporation.</div>`;
-    this.openModal({ title: 'About BikinStudio', body, width: 620, buttons: [{ label: 'Close', value: 'ok', primary: true }] });
+    this.openModal({ title: 'About Rizz Studio', body, width: 620, buttons: [{ label: 'Close', value: 'ok', primary: true }] });
   }
 }
 
@@ -2384,13 +2589,9 @@ function detachHandler(code, handlerNameStr, handlesTarget, evt) {
     lines[handlesIdx] = head + ' ' + kept.join(', ');
     return lines.join('\n');
   }
-  // no Handles clauses left: drop the whole Sub block
-  let end = handlesIdx;
-  while (end < lines.length && !/^\s*End Sub\b/i.test(lines[end])) end++;
-  if (end >= lines.length) return src;
-  let from = start;
-  while (from > 0 && /^\s*$/.test(lines[from - 1])) from--;
-  lines.splice(from, end - from + 1);
+  // Last target gone: drop only the Handles clause. Keep the method and its
+  // body so user code is never destroyed.
+  lines[handlesIdx] = line.slice(0, hpos).replace(/\s+$/, '');
   return lines.join('\n');
 }
 
@@ -2585,15 +2786,15 @@ Public Class Form1
     End Sub
 
     Private Sub AboutMenuItem_Click(sender As Object, e As EventArgs) Handles AboutMenuItem.Click
-        MessageBox.Show("Built with BikinStudio on Linux.", "About", MessageBoxButtons.OK, MessageBoxIcon.Information)
+        MessageBox.Show("Built with Rizz Studio on Linux.", "About", MessageBoxButtons.OK, MessageBoxIcon.Information)
     End Sub
 
     Private Sub ToolStripButton1_Click(sender As Object, e As EventArgs) Handles ToolStripButton1.Click
-        MessageBox.Show("New document", "BikinStudio", MessageBoxButtons.OK, MessageBoxIcon.Information)
+        MessageBox.Show("New document", "Rizz Studio", MessageBoxButtons.OK, MessageBoxIcon.Information)
     End Sub
 
     Private Sub HelloButton_Click(sender As Object, e As EventArgs) Handles HelloButton.Click
-        MessageBox.Show("Hello from BikinStudio!", "Hello", MessageBoxButtons.OK, MessageBoxIcon.Information)
+        MessageBox.Show("Hello from Rizz Studio!", "Hello", MessageBoxButtons.OK, MessageBoxIcon.Information)
     End Sub
 
 End Class
@@ -2723,7 +2924,7 @@ function buildMenuForm(form) {
   add('Label', 'TitleLabel', 28, 76, 500, 34, 'Menu & Toolbar Demo', {
     Font: { family: 'Segoe UI', size: 18, style: 1 }, ForeColor: '#2B2839',
   });
-  add('Label', 'BodyLabel', 28, 118, 620, 60, 'This form was generated by BikinStudio. Edit the menu items in the Properties panel, then press F5 to run it with Mono.', {
+  add('Label', 'BodyLabel', 28, 118, 620, 60, 'This form was generated by Rizz Studio. Edit the menu items in the Properties panel, then press F5 to run it with Mono.', {
     Font: { family: 'Segoe UI', size: 10, style: 0 }, ForeColor: '#444444',
   });
   add('Button', 'HelloButton', 28, 190, 140, 36, 'Say Hello', { FlatStyle: 'Flat' });

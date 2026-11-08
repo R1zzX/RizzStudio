@@ -79,6 +79,13 @@ export function uniqueName(base, used) {
   return clean + i;
 }
 
+/* Visual Studio always starts control names at 1 (Button1, Label1, …). */
+export function controlName(type, used) {
+  let i = 1;
+  while (used.has(type + i)) i++;
+  return type + i;
+}
+
 export function usedNames(form) {
   const s = new Set();
   const walk = (list) => {
@@ -108,7 +115,7 @@ export function makeTabPage(name, text) {
 export function createControl(type, used, x = 8, y = 8) {
   const def = CONTROLS[type];
   if (!def) throw new Error('Unknown control type: ' + type);
-  const name = uniqueName(type, used);
+  const name = controlName(type, used);
   used.add(name);
   const props = defaultsFor(type);
   if (def.text !== undefined && def.text !== null) props.Text = def.text ? name : '';
@@ -400,7 +407,14 @@ export function serializeDesigner(form) {
     if (c.items) emitItemsRecursive(L, c.items);
     if (c.columns) for (const col of c.columns) push(instLine(col.name, 'DataGridViewTextBoxColumn'));
   }
-  for (const c of controls) push(instLine(c.name, c.type));
+  for (const c of controls) {
+    if (c.unknown) {
+      const ctor = (c.raw || []).find(l => /^Me\.\w+\s*=\s*New\b/.test(l.trim()));
+      push(ctor ? `        ${ctor.trim()}` : instLine(c.name, c.type));
+    } else {
+      push(instLine(c.name, c.type));
+    }
+  }
 
   push('');
   push(`        Me.SuspendLayout()`);
@@ -408,6 +422,15 @@ export function serializeDesigner(form) {
   // properties
   for (const c of form.components) emitControlProps(L, c);
   for (const c of controls) {
+    if (c.unknown) {
+      for (const raw of c.raw || []) {
+        const t = raw.trim();
+        if (/^Me\.\w+\s*=\s*New\b/.test(t)) continue;
+        if (/\.Controls\.Add/.test(t)) continue;
+        L.push(`        ${t}`);
+      }
+      continue;
+    }
     if (c.type === 'TabControl') for (const p of c.tabPages) {
       L.push(`        Me.${p.name}.Text = ${vbString(p.text)}`);
       L.push(`        Me.${p.name}.UseVisualStyleBackColor = True`);
@@ -478,7 +501,8 @@ export function serializeDesigner(form) {
     }
     if (c.items) for (const it of flattenItems(c.items)) push(`    Friend WithEvents ${it.name} As ${fieldType(it.type)}`);
     if (c.columns) for (const col of c.columns) push(`    Friend WithEvents ${col.name} As System.Windows.Forms.DataGridViewTextBoxColumn`);
-    push(`    Friend WithEvents ${c.name} As ${fieldType(c.type)}`);
+    if (c.unknown) push(c.decl ? `    ${c.decl.trim()}` : `    Friend WithEvents ${c.name} As System.Windows.Forms.${c.type}`);
+    else push(`    Friend WithEvents ${c.name} As ${fieldType(c.type)}`);
   }
   push(`End Class`);
   push('');
@@ -528,9 +552,10 @@ function emitControlProps(L, c) {
     if (p.name === 'TabPages' || p.name === 'Columns') continue;
     const v = c.props[p.name];
     if (v === undefined) continue;
-    if (eq(v, p.def)) continue;
+    if (eq(v, p.def) && !p.emitAlways) continue;
     L.push(`        Me.${c.name}.${p.name} = ${propLiteral(c.type, p, v)}`);
   }
+  if (c.extra) for (const [k, v] of Object.entries(c.extra)) L.push(`        Me.${c.name}.${k} = ${v}`);
   if (!c.component) {
     const docked = c.props.Dock && c.props.Dock !== 'None';
     if (!docked) {
@@ -680,6 +705,7 @@ export function parseDesigner(code, fallbackName = 'Form1') {
   const itemRefs = new Map();    // owner -> [refs]
   const dropdownRefs = new Map();
   const columnRefs = new Map();
+  const declLines = new Map();   // name -> raw Friend WithEvents declaration
   const warnings = [];
   let formName = fallbackName;
   const formPropNames = new Set(['ClientSize', ...FORM_PROPS.map(p => p.name)]);
@@ -688,6 +714,9 @@ export function parseDesigner(code, fallbackName = 'Form1') {
     if (!line || line.startsWith("'") || line.startsWith('Imports ') || line.startsWith('Option ')) continue;
     let m = line.match(/^(?:Public\s+|Friend\s+)?Partial\s+Class\s+(\w+)/i);
     if (m) { formName = m[1]; form.name = formName; continue; }
+
+    m = line.match(/^(?:Friend|Private|Public)\s+WithEvents\s+(\w+)\s+As\s+(.+)$/i);
+    if (m) { declLines.set(m[1], line); continue; }
 
     m = line.match(/^Me\.([A-Za-z0-9_]+)\s*=\s*(.+)$/);
     if (m && formPropNames.has(m[1])) { formProps[m[1]] = m[2]; continue; }
@@ -757,7 +786,20 @@ export function parseDesigner(code, fallbackName = 'Form1') {
       byName.set(name, c);
       continue;
     }
-    if (!CONTROLS[type]) { warnings.push(`Unsupported control type: ${type} (${name})`); continue; }
+    if (!CONTROLS[type]) {
+      // Opaque preservation: keep the control and its raw designer lines so a
+      // round-trip through the designer cannot silently delete it.
+      const rawRe = new RegExp(`^(?:Me\\.${escapeRe(name)}\\b|CType\\(Me\\.${escapeRe(name)}\\b)`);
+      const raw = lines.filter(l => rawRe.test(l.trim()));
+      const c = {
+        id: uid(), type, name, x: 0, y: 0, w: 64, h: 64,
+        props: {}, events: {}, children: [], component: false,
+        unknown: true, raw, decl: declLines.get(name) || '',
+      };
+      byName.set(name, c);
+      warnings.push(`Preserved unsupported control type: ${type} (${name}). It stays in Designer.vb but is not editable in the designer.`);
+      continue;
+    }
     const c = {
       id: uid(), type, name,
       x: 0, y: 0, w: CONTROLS[type].size[0], h: CONTROLS[type].size[1],
@@ -885,7 +927,16 @@ function applyProps(c, raw) {
     if (prop === 'Text') { c.props.Text = parseStringExpr(value); continue; }
     if (prop === 'Items' || prop === 'TabPages' || prop === 'Columns') continue;
     const p = map[prop];
-    if (!p) continue;
+    if (!p) {
+      // Preserve properties the catalog does not model so a save does not
+      // silently drop designer settings. Values that depend on generated
+      // locals (resource manager, CType casts) are left alone.
+      if (!/\bresources\b/.test(value) && !/\bCType\(|\bDirectCast\(/.test(value)) {
+        c.extra = c.extra || {};
+        c.extra[prop] = value;
+      }
+      continue;
+    }
     switch (p.type) {
       case 'string': c.props[prop] = parseStringExpr(value); break;
       case 'bool': c.props[prop] = parseBool(value); break;
@@ -935,6 +986,24 @@ export function removeHandler(code, ctrlName, eventName) {
   const name = handlerName(ctrlName, eventName);
   const re = new RegExp(`\\n?[ \\t]*Private Sub ${escapeRe(name)}\\([^\\n]*\\)[^\\n]*Handles[^\\n]*\\n(?:[\\s\\S]*?)\\n[ \\t]*End Sub\\n?`, 'i');
   return code.replace(re, '\n');
+}
+
+/* Remove Handles clauses that point at deleted controls. The handler body is
+   left intact so user code is never destroyed; a clause with no targets left
+   simply loses its Handles list. */
+export function stripHandlesFor(code, names) {
+  if (!names || !names.length) return code;
+  const set = new Set(names.map(n => String(n).toLowerCase()));
+  return code.split('\n').map((line) => {
+    if (line.trim().startsWith("'")) return line;
+    const m = line.match(/^(.*?)\bHandles\s+(.+)$/);
+    if (!m) return line;
+    const targets = m[2].split(',').map(t => t.trim()).filter(Boolean);
+    const kept = targets.filter(t => !set.has(t.split('.')[0].trim().toLowerCase()));
+    if (kept.length === targets.length) return line;
+    if (!kept.length) return m[1].replace(/\s+$/, '');
+    return `${m[1]}${kept.join(', ')}`;
+  }).join('\n');
 }
 
 function escapeRe(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }

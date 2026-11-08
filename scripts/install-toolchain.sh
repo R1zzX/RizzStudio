@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# BikinStudio portable toolchain installer.
+# Rizz Studio portable toolchain installer.
 #
 # Installs, without root:
 #   ~/.dotnet                                  .NET SDK 8 (builds net472 projects)
@@ -332,4 +332,4 @@ fi
 say "Toolchain installed"
 info ".NET SDK : $DOTNET_DIR/dotnet"
 info "Mono     : $MONO_PREFIX/usr/bin/mono"
-info "Open BikinStudio and press F5 to build and run."
+info "Open Rizz Studio and press F5 to build and run."

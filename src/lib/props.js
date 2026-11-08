@@ -81,6 +81,15 @@ export class PropertiesPanel {
   }
 
   renderControlProps(c, form) {
+    if (c.unknown) {
+      const props = [
+        { name: 'Name', type: 'readonly', cat: 'Design', def: c.name },
+        { name: 'Type', type: 'readonly', cat: 'Design', def: c.type },
+        { name: 'Note', type: 'readonly', cat: 'Design', def: 'Preserved from Designer.vb' },
+      ];
+      this.buildGrid(props, { Name: c.name, Type: c.type, Note: 'Preserved from Designer.vb' }, [c], false);
+      return;
+    }
     if (c.isPage) {
       const props = [
         { name: 'Text', type: 'string', cat: 'Appearance', def: c.text || '', desc: 'The tab page caption.' },
@@ -103,6 +112,7 @@ export class PropertiesPanel {
     ];
     const props = [...base, ...synthetic];
     const values = { ...c.props, Name: c.name, Location: [c.x, c.y], Size: [c.w, c.h] };
+    if (props.some(p => p.name === 'Font')) values.Font = this.designer.fontFor(c);
     this.buildGrid(props, values, [c], false);
   }
 
@@ -111,11 +121,16 @@ export class PropertiesPanel {
   }
 
   renderMultiProps(cs, form) {
-    const base = propsFor(cs[0].type);
-    const shared = base.filter(p => cs.every(c => c.props[p.name] !== undefined));
+    const editable = cs.filter(c => !c.unknown);
+    if (!editable.length) {
+      this.$.grid.appendChild(el('div', 'empty-note pad', 'Unsupported controls are preserved but cannot be edited here.'));
+      return;
+    }
+    const base = propsFor(editable[0].type);
+    const shared = base.filter(p => editable.every(c => c.props[p.name] !== undefined));
     const values = {};
-    for (const p of shared) values[p.name] = cs[0].props[p.name];
-    this.buildGrid(shared, values, cs, false, false, true);
+    for (const p of shared) values[p.name] = editable[0].props[p.name];
+    this.buildGrid(shared, values, editable, false, false, true);
   }
 
   buildGrid(props, values, targets, isForm, isPage = false, isMulti = false) {
@@ -331,7 +346,13 @@ export class PropertiesPanel {
       return;
     }
     if (p.name === 'Location') { target.x = Math.max(0, v[0]); target.y = Math.max(0, v[1]); return; }
-    if (p.name === 'Size') { target.w = Math.max(8, v[0]); target.h = Math.max(8, v[1]); return; }
+    if (p.name === 'Size') {
+      target.w = Math.max(8, v[0]); target.h = Math.max(8, v[1]);
+      // WinForms AutoSize controls ignore an explicit Size, so resizing one
+      // through the property grid turns AutoSize off, like the VS designer.
+      if (target.props && target.props.AutoSize === true) target.props.AutoSize = false;
+      return;
+    }
     target.props[p.name] = v;
   }
 

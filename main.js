@@ -375,7 +375,7 @@ ipcMain.handle('app:stop', () => {
 ipcMain.handle('toolchain:install', async () => {
   const script = path.join(ROOT, 'scripts', 'install-toolchain.sh');
   if (!(await exists(script))) return { ok: false, output: 'Installer script missing.' };
-  send('toolchain:output', '\n=== BikinStudio toolchain installer ===\n');
+  send('toolchain:output', '\n=== Rizz Studio toolchain installer ===\n');
   const child = spawn('bash', [script], { env: { ...process.env, HOME } });
   children.add(child);
   let out = '';
