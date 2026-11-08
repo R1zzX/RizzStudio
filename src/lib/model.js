@@ -243,6 +243,40 @@ export function isContainer(c) {
   return c && (c.type === 'Panel' || c.type === 'GroupBox' || c.type === 'TabControl');
 }
 
+/* WinForms anchor layout: when a container's client area changes by (dw, dh),
+   move/resize its anchored children the same way the runtime would. */
+export function applyAnchorResize(container, dw, dh, isForm = false) {
+  if ((!dw && !dh) || !container) return;
+  const childrenOf = (c) => {
+    if (!c) return container.controls || [];
+    if (c.type === 'TabControl') {
+      const out = [];
+      for (const p of c.tabPages || []) out.push(...(p.children || []));
+      return out;
+    }
+    return c.children || [];
+  };
+  const walk = (list, adw, adh) => {
+    for (const c of list) {
+      if (!c || c.component || c.isPage || c.unknown) continue;
+      if ((c.props?.Dock || 'None') !== 'None') continue;
+      const a = new Set(String(c.props?.Anchor || 'Top, Left').split(',').map(s => s.trim()).filter(Boolean));
+      const hasL = a.has('Left'), hasR = a.has('Right');
+      const hasT = a.has('Top'), hasB = a.has('Bottom');
+      const ow = c.w, oh = c.h;
+      if (!(c.props?.AutoSize === true)) {
+        if (hasL && hasR) c.w = Math.max(8, c.w + adw);
+        if (hasT && hasB) c.h = Math.max(8, c.h + adh);
+      }
+      if (!hasL && hasR) c.x = Math.max(0, c.x + adw);
+      if (!hasT && hasB) c.y = Math.max(0, c.y + adh);
+      const cdw = c.w - ow, cdh = c.h - oh;
+      if (isContainer(c) && (cdw || cdh)) walk(childrenOf(c), cdw, cdh);
+    }
+  };
+  walk(childrenOf(isForm ? null : container), dw, dh);
+}
+
 export function controlListFor(form, parent) {
   if (!parent) return form.controls;
   if (parent.type === 'TabControl') return parent.tabPages[parent.activePage || 0].children;
@@ -432,6 +466,7 @@ export function serializeDesigner(form) {
       continue;
     }
     if (c.type === 'TabControl') for (const p of c.tabPages) {
+      L.push(`        Me.${p.name}.Name = ${vbString(p.name)}`);
       L.push(`        Me.${p.name}.Text = ${vbString(p.text)}`);
       L.push(`        Me.${p.name}.UseVisualStyleBackColor = True`);
     }
@@ -463,6 +498,8 @@ export function serializeDesigner(form) {
   }
   push(`        Me.Name = ${vbString(form.name)}`);
   push(`        Me.Text = ${vbString(fp.Text || form.name)}`);
+  const mainMenu = controls.find(c => c.type === 'MenuStrip');
+  if (mainMenu) push(`        Me.MainMenuStrip = Me.${mainMenu.name}`);
 
   // add children
   const addTo = (parentName, list) => {

@@ -6,7 +6,7 @@ import {
 } from './catalog.js';
 import {
   createFormModel, createControl, addControl, allControls, findControl, findParent,
-  usedNames, uniqueName, walkControls, serializeDesigner, parseDesigner, parseHandlers,
+  usedNames, uniqueName, controlName, walkControls, serializeDesigner, parseDesigner, parseHandlers,
   defaultCodeBehind, handlerName, makeTabPage, stripHandlesFor,
   vbprojFile, slnFile, programFile, uid, COMPONENT_TYPES,
 } from './model.js';
@@ -1879,9 +1879,9 @@ class App {
       const actions = el('div', 'coll-actions');
       const add = el('button', 'btn', '+ Add Page');
       add.addEventListener('click', () => {
-        const name = uniqueName('TabPage', used);
+        const name = controlName('TabPage', used);
         used.add(name);
-        working.push(makeTabPage(name, 'TabPage' + (working.length + 1)));
+        working.push(makeTabPage(name, name));
         selected = working.length - 1; draw();
       });
       const del = el('button', 'btn', 'Remove');
@@ -1918,7 +1918,16 @@ class App {
           label: 'OK', primary: true,
           onClick: () => {
             this.designer.pushUndo();
-            const removed = (ctrl.tabPages || []).filter(p => !working.some(w => w.name === p.name)).map(p => p.name);
+            const removed = [];
+            const collect = (c) => {
+              removed.push(c.name);
+              for (const ch of c.children || []) collect(ch);
+            };
+            for (const p of ctrl.tabPages || []) {
+              if (working.some(w => w.name === p.name)) continue;
+              removed.push(p.name);
+              for (const ch of p.children || []) collect(ch);
+            }
             ctrl.tabPages = working;
             ctrl.activePage = Math.min(ctrl.activePage || 0, working.length - 1);
             this.designer.render();
@@ -1954,8 +1963,8 @@ class App {
       const actions = el('div', 'coll-actions');
       const add = el('button', 'btn', '+ Add Column');
       add.addEventListener('click', () => {
-        const name = uniqueName('Column', used); used.add(name);
-        working.push({ id: uid('col'), name, text: 'Column' + (working.length + 1), width: 100 });
+        const name = controlName('Column', used); used.add(name);
+        working.push({ id: uid('col'), name, text: name, width: 100 });
         selected = working.length - 1; draw();
       });
       const del = el('button', 'btn', 'Remove');

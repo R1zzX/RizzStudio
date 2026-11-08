@@ -9,7 +9,7 @@ No Windows required. No `sudo` required.
 ## What it can do
 
 - Create, open, and save VB.NET WinForms projects (`.sln` + `.vbproj`).
-- Design forms visually: drop controls from the toolbox, move, resize, align, snap, copy/paste, undo/redo.
+- Design forms visually: drop controls from the toolbox, move, resize, align, snap, copy/paste, undo/redo. Select the form to resize it with sizing handles; anchored controls follow, like the VS designer.
 - Edit properties in a grouped property grid, including colors, fonts, enums, anchors, padding, and collections.
 - Bind and unbind events; Rizz Studio writes the `Handles` clause and a handler stub into the code-behind. The Events grid stays in sync while you edit the handler code.
 - Rename or delete forms from the Solution Explorer context menu; rename updates the class, both files, handler names, and `Program.vb`.

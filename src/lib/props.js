@@ -1,7 +1,7 @@
 /* Properties + Events panel */
 
 import { propsFor, eventsFor, categoriesOf, iconFor } from './catalog.js';
-import { handlerName } from './model.js';
+import { handlerName, applyAnchorResize } from './model.js';
 
 const ANCHORS = ['Top', 'Bottom', 'Left', 'Right'];
 
@@ -112,6 +112,7 @@ export class PropertiesPanel {
     ];
     const props = [...base, ...synthetic];
     const values = { ...c.props, Name: c.name, Location: [c.x, c.y], Size: [c.w, c.h] };
+    if (c.type === 'TabControl') values.SelectedIndex = c.activePage || 0;
     if (props.some(p => p.name === 'Font')) values.Font = this.designer.fontFor(c);
     this.buildGrid(props, values, [c], false);
   }
@@ -332,7 +333,12 @@ export class PropertiesPanel {
 
   applyValue(p, v, target, ctx) {
     if (ctx.isForm) {
-      if (p.name === 'ClientSize') { target.w = Math.max(100, v[0]); target.h = Math.max(60, v[1]); return; }
+      if (p.name === 'ClientSize') {
+        const nw = Math.max(100, v[0]), nh = Math.max(60, v[1]);
+        applyAnchorResize(target, nw - target.w, nh - target.h, true);
+        target.w = nw; target.h = nh;
+        return;
+      }
       if (p.name === 'Name') return;
       target.props[p.name] = v;
       return;
@@ -346,8 +352,16 @@ export class PropertiesPanel {
       return;
     }
     if (p.name === 'Location') { target.x = Math.max(0, v[0]); target.y = Math.max(0, v[1]); return; }
+    if (p.name === 'SelectedIndex' && target.type === 'TabControl') {
+      const n = Math.max(0, Math.min((target.tabPages || []).length - 1, parseInt(v, 10) || 0));
+      target.activePage = n;
+      target.props.SelectedIndex = n;
+      return;
+    }
     if (p.name === 'Size') {
-      target.w = Math.max(8, v[0]); target.h = Math.max(8, v[1]);
+      const nw = Math.max(8, v[0]), nh = Math.max(8, v[1]);
+      applyAnchorResize(target, nw - target.w, nh - target.h);
+      target.w = nw; target.h = nh;
       // WinForms AutoSize controls ignore an explicit Size, so resizing one
       // through the property grid turns AutoSize off, like the VS designer.
       if (target.props && target.props.AutoSize === true) target.props.AutoSize = false;

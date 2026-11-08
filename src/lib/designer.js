@@ -3,7 +3,7 @@
 import { CONTROLS, propsFor, iconFor, toolboxIconChar } from './catalog.js';
 import {
   addControl, allControls, controlListFor, controlName, findControl, findParent, isContainer,
-  uid, uniqueName, usedNames, walkControls,
+  uid, uniqueName, usedNames, walkControls, applyAnchorResize,
 } from './model.js';
 
 const HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
@@ -423,7 +423,22 @@ export class Designer {
     const layer = this.$.selLayer;
     layer.innerHTML = '';
     this.$.frame.classList.toggle('form-selected', this.selForm);
-    if (this.selForm) return;
+    if (this.selForm) {
+      const f = this.form;
+      for (const h of HANDLES) {
+        const hd = el('div', 'sel-handle');
+        hd.dataset.h = h;
+        hd.title = 'Resize form';
+        const px = h.includes('w') ? -3 : h.includes('e') ? f.w - 4 : f.w / 2 - 3.5;
+        const py = h.includes('n') ? -3 : h.includes('s') ? f.h - 4 : f.h / 2 - 3.5;
+        hd.style.left = px + 'px';
+        hd.style.top = py + 'px';
+        hd.style.cursor = `${h}-resize`;
+        hd.addEventListener('pointerdown', (e) => this.onFormResizeDown(e, h));
+        layer.appendChild(hd);
+      }
+      return;
+    }
     const selected = this.selectedControls();
     for (const c of selected) {
       if (c.component || c.isPage) continue;
@@ -689,9 +704,49 @@ export class Designer {
       if (dir.includes('s')) h = Math.max(8, o.h + dy);
       if (dir.includes('w')) { w = Math.max(8, o.w - dx); x = o.x + (o.w - w); }
       if (dir.includes('n')) { h = Math.max(8, o.h - dy); y = o.y + (o.h - h); }
+      const prevW = c.w, prevH = c.h;
       c.x = Math.max(0, x); c.y = Math.max(0, y); c.w = Math.round(w); c.h = Math.round(h);
+      if (isContainer(c)) applyAnchorResize(c, c.w - prevW, c.h - prevH);
       this.render();
       this.showSizeTip(c._rect.x, c._rect.y + c._rect.h + 8, `${c.w} × ${c.h}`);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      this.hideSizeTip();
+      this.app.onDesignerChange(true);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  }
+
+  onFormResizeDown(e, dir) {
+    e.stopPropagation();
+    e.preventDefault();
+    this.pushUndo();
+    this.selForm = true;
+    const f = this.form;
+    const start = this.toForm(e);
+    const o = { w: f.w, h: f.h };
+    const move = (ev) => {
+      const p = this.toForm(ev);
+      let dx = Math.round(p.x - start.x);
+      let dy = Math.round(p.y - start.y);
+      if (this.settings.snap) {
+        const g = this.settings.gridSize || SNAP;
+        dx = Math.round(dx / g) * g;
+        dy = Math.round(dy / g) * g;
+      }
+      let w = o.w, h = o.h;
+      if (dir.includes('e')) w = Math.max(100, o.w + dx);
+      if (dir.includes('s')) h = Math.max(60, o.h + dy);
+      if (dir.includes('w')) w = Math.max(100, o.w - dx);
+      if (dir.includes('n')) h = Math.max(60, o.h - dy);
+      const prevW = f.w, prevH = f.h;
+      f.w = Math.round(w); f.h = Math.round(h);
+      applyAnchorResize(f, f.w - prevW, f.h - prevH, true);
+      this.render();
+      this.showSizeTip(f.w / 2 - 24, f.h + 10, `${f.w} × ${f.h}`);
     };
     const up = () => {
       window.removeEventListener('pointermove', move);
@@ -833,7 +888,7 @@ export class Designer {
       if (c.type === 'TabControl') {
         for (const p of c.tabPages || []) {
           p.id = uid('p');
-          p.name = uniqueName('TabPage', used);
+          p.name = controlName('TabPage', used);
           used.add(p.name);
           p.children = (p.children || []).map(ch => pasteOne(ch, p));
         }
@@ -842,7 +897,7 @@ export class Designer {
       if (c.items) { c.items = cloneItems(c.items, used); }
       if (c.columns) for (const col of c.columns) {
         col.id = uid('col');
-        col.name = uniqueName('Column', used);
+        col.name = controlName('Column', used);
         used.add(col.name);
       }
       c.x = (c.x || 0) + 16;

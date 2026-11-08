@@ -187,10 +187,12 @@ export const CONTROLS = {
 
   StatusStrip: d('StatusStrip', [320, 22], '', [
     { name: 'Items', type: 'collection', cat: 'Data', def: [{ text: 'Ready' }], coll: 'statusitems' },
+    { name: 'Dock', type: 'enum', cat: 'Layout', def: 'Bottom', options: ['None', 'Top', 'Bottom', 'Left', 'Right', 'Fill'], ns: 'System.Windows.Forms' },
   ], E(['ItemClicked']), { category: 'Menus & Toolbars', noText: true, desc: 'A status bar at the bottom of the form.' }),
 
   ToolStrip: d('ToolStrip', [320, 26], '', [
     { name: 'Items', type: 'collection', cat: 'Data', def: [{ text: 'New' }, { text: 'Open' }, { text: 'Save' }], coll: 'toolstripitems' },
+    { name: 'Dock', type: 'enum', cat: 'Layout', def: 'Top', options: ['None', 'Top', 'Bottom', 'Left', 'Right', 'Fill'], ns: 'System.Windows.Forms' },
     { name: 'GripStyle', type: 'enum', cat: 'Appearance', def: 'Hidden', options: ['Visible', 'Hidden'] },
   ], E(['ItemClicked']), { category: 'Menus & Toolbars', noText: true, desc: 'A toolbar with buttons.' }),
 
