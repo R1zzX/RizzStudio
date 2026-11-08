@@ -45,8 +45,8 @@ npm start
 | Component | Location |
 | --- | --- |
 | .NET SDK 8 | `~/.dotnet` |
-| Mono 6.12 + WinForms | `~/.local/share/bikinstudio/mono` |
-| libgdiplus / libcairo | `~/.local/share/bikinstudio/mono` |
+| Mono 6.12 + WinForms | `~/.local/share/RizzStudio/mono` |
+| libgdiplus / libcairo | `~/.local/share/RizzStudio/mono` |
 
 The script is idempotent — running it again skips components that are already installed. The IDE also has a **Toolchain Manager** panel (left sidebar) that reports what is installed and can re-run the setup.
 
