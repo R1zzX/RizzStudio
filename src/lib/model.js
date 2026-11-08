@@ -84,6 +84,8 @@ export function usedNames(form) {
   const walk = (list) => {
     for (const c of list) {
       s.add(c.name);
+      if (c.items) for (const it of flattenItems(c.items)) s.add(it.name);
+      if (c.columns) for (const col of c.columns) s.add(col.name);
       if (c.tabPages) for (const p of c.tabPages) { s.add(p.name); walk(p.children || []); }
       walk(c.children || []);
     }
@@ -139,12 +141,16 @@ export function createControl(type, used, x = 8, y = 8) {
     delete props.Items;
   }
   if (type === 'DataGridView') {
-    c.columns = (props.Columns || []).map((col, i) => ({
-      id: uid('col'),
-      name: uniqueName(col.text ? sanitizeId(col.text) : 'Column', used),
-      text: col.text || `Column${i + 1}`,
-      width: col.width || 100,
-    }));
+    c.columns = (props.Columns || []).map((col, i) => {
+      const name = uniqueName(col.text ? sanitizeId(col.text) : 'Column', used);
+      used.add(name);
+      return {
+        id: uid('col'),
+        name,
+        text: col.text || `Column${i + 1}`,
+        width: col.width || 100,
+      };
+    });
     delete props.Columns;
   }
   return c;

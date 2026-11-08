@@ -1795,6 +1795,7 @@ class App {
   editTabPages(ctrl) {
     let working = (ctrl.tabPages || []).map(p => ({ ...p, children: p.children || [] }));
     let selected = 0;
+    const used = usedNames(this.designer.form);
     const body = el('div');
     body.innerHTML = `<div class="hint" style="margin-bottom:10px">Tab pages are real <code>TabPage</code> controls. Controls dropped on the active tab page belong to it.</div>`;
     const layout = el('div', 'coll-layout');
@@ -1814,8 +1815,9 @@ class App {
       const actions = el('div', 'coll-actions');
       const add = el('button', 'btn', '+ Add Page');
       add.addEventListener('click', () => {
-        const used = usedNames(this.designer.form);
-        working.push(makeTabPage(uniqueName('TabPage', used), 'TabPage' + (working.length + 1)));
+        const name = uniqueName('TabPage', used);
+        used.add(name);
+        working.push(makeTabPage(name, 'TabPage' + (working.length + 1)));
         selected = working.length - 1; draw();
       });
       const del = el('button', 'btn', 'Remove');

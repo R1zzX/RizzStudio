@@ -768,7 +768,11 @@ export class Designer {
       }
       c.children = (c.children || []).map(ch => pasteOne(ch, c));
       if (c.items) { c.items = cloneItems(c.items, used); }
-      if (c.columns) for (const col of c.columns) { col.id = uid('col'); col.name = uniqueName('Column', used); }
+      if (c.columns) for (const col of c.columns) {
+        col.id = uid('col');
+        col.name = uniqueName('Column', used);
+        used.add(col.name);
+      }
       c.x = (c.x || 0) + 16;
       c.y = (c.y || 0) + 16;
       if (parent) controlListFor(this.form, parent).push(c);
@@ -925,10 +929,14 @@ function intersects(a, b) {
 }
 
 function cloneItems(items, used) {
-  return (items || []).map(it => ({
-    ...it,
-    id: uid('mi'),
-    name: uniqueName(it.type, used),
-    items: cloneItems(it.items, used),
-  }));
+  return (items || []).map(it => {
+    const name = uniqueName(it.type, used);
+    used.add(name);
+    return {
+      ...it,
+      id: uid('mi'),
+      name,
+      items: cloneItems(it.items, used),
+    };
+  });
 }
