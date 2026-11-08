@@ -245,7 +245,7 @@ class App {
 
     const api = {
       el: modal, body: bodyEl, closed: false,
-      close(value) {
+      close: (value) => {
         if (api.closed) return;
         api.closed = true;
         layer.classList.add('hidden');

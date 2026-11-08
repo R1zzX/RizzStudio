@@ -402,7 +402,7 @@ code { font-family: var(--mono); font-size: 11.5px; color: var(--accent-2); }
 .ctl.Panel { background: #f0f0f0; }
 .ctl.Panel.bordered { border: 1px solid #9a9a9a; }
 .ctl.GroupBox { background: transparent; border: 1px solid #9a9a9a; border-radius: 2px; }
-.ctl.GroupBox > .gb-title { position: absolute; left: 8px; top: -8px; background: #f0f0f0; padding: 0 4px; font-size: 11.5px; color: #222; }
+.ctl.GroupBox > .gb-title { position: absolute; left: 8px; top: -8px; background: inherit; padding: 0 4px; font-size: 11.5px; color: #222; }
 .ctl.TabControl { background: #f0f0f0; border: 1px solid #9a9a9a; }
 .ctl.TabControl > .tabs { position: absolute; left: 0; top: 0; right: 0; height: 24px; display: flex; align-items: flex-end; padding-left: 3px; gap: 2px; border-bottom: 1px solid #9a9a9a; }
 .ctl.TabControl > .tabs .tab { padding: 3px 10px 2px; font-size: 11.5px; background: #e4e4e4; border: 1px solid #9a9a9a; border-bottom: 0; border-radius: 3px 3px 0 0; }

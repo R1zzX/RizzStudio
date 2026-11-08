@@ -235,6 +235,8 @@ export class Designer {
     const surface = this.$.surface;
     surface.style.width = f.w + 'px';
     surface.style.height = f.h + 'px';
+    const bg = f.props?.BackColor;
+    surface.style.backgroundColor = bg && bg !== 'Transparent' ? bg : '#F0F0F0';
     surface.style.setProperty('--grid-size', (this.settings.gridSize || 8) + 'px');
     this.$.frame.style.width = f.w + 'px';
     this.$.caption.textContent = f.props.Text || f.name;
@@ -270,16 +272,28 @@ export class Designer {
 
   /* A control inherits the Font of its nearest parent (container or form) until
      the property is explicitly changed, matching WinForms inheritance rules. */
+  isDefaultProp(type, name, value) {
+    const def = propsFor(type).find(p => p.name === name);
+    return !!def && JSON.stringify(value) === JSON.stringify(def.def);
+  }
+
   fontFor(c) {
-    const isDefault = (type, f) => {
-      const def = propsFor(type).find(p => p.name === 'Font');
-      return !!def && JSON.stringify(f) === JSON.stringify(def.def);
-    };
     for (let cur = c; cur; cur = cur._parent) {
       const f = cur.props?.Font;
-      if (f && !isDefault(cur.type, f)) return f;
+      if (f && !this.isDefaultProp(cur.type, 'Font', f)) return f;
     }
     return this.form?.props?.Font || { family: 'Segoe UI', size: 9, style: 0 };
+  }
+
+  /* WinForms ambient color: children inherit ForeColor from their parent until
+     it is set explicitly. */
+  foreColorFor(c) {
+    for (let cur = c; cur; cur = cur._parent) {
+      const v = cur.props?.ForeColor;
+      if (v && v !== 'Transparent' && !this.isDefaultProp(cur.type, 'ForeColor', v)) return v;
+    }
+    const fv = this.form?.props?.ForeColor;
+    return fv && fv !== 'Transparent' ? fv : '#000000';
   }
 
   renderControl(c) {
@@ -309,9 +323,10 @@ export class Designer {
     node.style.fontWeight = (font.style & 1) ? '700' : '400';
     node.style.fontStyle = (font.style & 2) ? 'italic' : 'normal';
     node.style.textDecoration = (font.style & 4) ? 'underline' : (font.style & 8 ? 'line-through' : 'none');
-    if (p.ForeColor && p.ForeColor !== 'Transparent') node.style.color = p.ForeColor;
-    if (p.BackColor && p.BackColor !== 'Transparent' && p.BackColor !== 'Control') node.style.background = p.BackColor;
+    if (p.ForeColor && p.ForeColor !== 'Transparent' && !this.isDefaultProp(c.type, 'ForeColor', p.ForeColor)) node.style.color = p.ForeColor;
+    else node.style.color = this.foreColorFor(c);
     if (p.BackColor === 'Transparent') node.style.background = 'transparent';
+    else if (p.BackColor && p.BackColor !== 'Control' && !this.isDefaultProp(c.type, 'BackColor', p.BackColor)) node.style.background = p.BackColor;
     if (p.Enabled === false) { node.style.opacity = '.62'; node.style.filter = 'grayscale(.35)'; }
     if (p.Visible === false) node.style.visibility = 'hidden';
     if (p.Cursor === 'Hand') node.style.cursor = 'pointer';
