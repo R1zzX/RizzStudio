@@ -1,0 +1,7 @@
+node_modules/
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.DS_Store
