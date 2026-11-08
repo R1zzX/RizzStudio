@@ -10,8 +10,9 @@ const { spawn } = require('child_process');
 
 const ROOT = __dirname;
 const HOME = os.homedir();
-const DOTNET = path.join(HOME, '.dotnet', 'dotnet');
-const TOOLCHAIN = path.join(HOME, '.local', 'share', 'bikinstudio');
+const DOTNET_DIR = process.env.BIKINSTUDIO_DOTNET_DIR || path.join(HOME, '.dotnet');
+const DOTNET = path.join(DOTNET_DIR, 'dotnet');
+const TOOLCHAIN = process.env.BIKINSTUDIO_TOOLCHAIN || path.join(HOME, '.local', 'share', 'bikinstudio');
 const MONO_PREFIX = path.join(TOOLCHAIN, 'mono');
 const MONO = path.join(MONO_PREFIX, 'usr', 'bin', 'mono');
 const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'settings.json');
